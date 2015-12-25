@@ -19,8 +19,14 @@ if ! [ -e $CACHE_DIR/$FILE_NAME ]; then
 fi
 
 echo "-----> Extracting XVFB binaries to ${BUILD_DIR}/vendor/xvfb"
+mkdir -v -p $BUILD_DIR/.heroku/vendor
+echo "-----> Extracting 1"
 mkdir -p $CACHE_DIR/$ARCHIVE_NAME
+echo "-----> Extracting 2"
 mkdir -p $BUILD_DIR/vendor
+echo "-----> Extracting 3"
 tar jxf $CACHE_DIR/$FILE_NAME -C $CACHE_DIR
-mv $CACHE_DIR/$ARCHIVE_NAME $BUILD_DIR/vendor/xvfb
+echo "-----> Extracting 3"
+mv $CACHE_DIR/$ARCHIVE_NAME $BUILD_DIR/.heroku/vendor/xvfb
+echo "-----> Extracting 4"
 apt-get install xvfb -y
