@@ -29,4 +29,4 @@ tar jxf $CACHE_DIR/$FILE_NAME -C $CACHE_DIR
 echo "-----> Extracting 3"
 mv $CACHE_DIR/$ARCHIVE_NAME $BUILD_DIR/vendor/xvfb
 echo "-----> Extracting 4"
-sudo apt-get install xvfb -y
+
