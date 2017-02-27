@@ -2,11 +2,11 @@
 
 set -e
 
+bp_dir=$(cd $(dirname $0); cd ..; pwd)
+
 BUILD_DIR=$1
 CACHE_DIR=$2
-
-# config
-# http://orm-buildpack.s3.amazonaws.com/Xvfb.tar.gz
+ENV_DIR=$3
 
 # Buildpack URL
 FILE_NAME=xvfb.tar.bz2
@@ -20,13 +20,69 @@ fi
 
 echo "-----> Extracting XVFB binaries to ${BUILD_DIR}/vendor/xvfb"
 mkdir -v -p $BUILD_DIR/.heroku/vendor
-echo "-----> Extracting 1"
 mkdir -p $CACHE_DIR/$ARCHIVE_NAME
-echo "-----> Extracting 2"
 mkdir -p $BUILD_DIR/vendor
-echo "-----> Extracting 3"
 tar jxf $CACHE_DIR/$FILE_NAME -C $CACHE_DIR
-echo "-----> Extracting 3"
 mv $CACHE_DIR/$ARCHIVE_NAME $BUILD_DIR/vendor/xvfb
-echo "-----> Extracting 4"
+echo "-----> XVFB path change"
+# symlink libs to where Xvfb searches
+ln -s /lib/x86_64-linux-gnu/libudev.so.1 $1/.apt/usr/lib/libudev.so.0
+ln -s /app/.apt/usr/lib/x86_64-linux-gnu/libXfont.so.1 $1/.apt/usr/lib/libXfont.so.1
+
+# patch Xvfb to use /app/.. paths instead of hardcoded wrong values
+sed -i.bak s/usr\\/bin/app\\/ubi/g $1/.apt/usr/bin/Xvfb
+sed -i.bak s/usr\\/share\\/fonts/app\\/usr-s-fonts/g $1/.apt/usr/bin/Xvfb
+# create symlinks for Xvfb to use /app/.apt/usr/...
+ln -s /app/.apt/usr/bin $1/ubi
+ln -s /app/.apt/usr/share/fonts $1/usr-s-fonts
+
+# run mkfontdir with binaries from inside dyno
+export PATH="$PATH:$1/.apt/usr/bin"
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$1/.apt/usr/lib:$1/.apt/usr/lib/x86_64-linux-gnu"
+find $1/.apt/usr/share/fonts/X11 -type d | xargs $1/.apt/usr/bin/mkfontdir
+echo "-----> XVFB installed ok"
+
+echo "-----> installed firefox"
+# config
+VERSION=46.0.1
+LANG=en-US
+PLATFORM=linux64
+
+ENV_VERSION=$ENV_DIR/FIREFOX_VERSION
+[ -e $ENV_VERSION ] && VERSION=$(cat $ENV_VERSION)
+
+# Buildpack URL
+ARCHIVE_NAME=""
+FILE_NAME=""
+ARCHIVE_NAME=firefox
+FILE_NAME=${ARCHIVE_NAME}-${VERSION}.tar.bz2
+BUILDPACK_FIREFOX_PACKAGE="https://download.mozilla.org/?product=firefox-${VERSION}-SSL&os=${PLATFORM}&lang=${LANG}"
+
+mkdir -p $CACHE_DIR
+if ! [ -e $CACHE_DIR/$FILE_NAME ]; then
+  echo "-----> Fetching Firefox package from ${BUILDPACK_FIREFOX_PACKAGE}"
+  curl $BUILDPACK_FIREFOX_PACKAGE --location --fail --silent --show-error -o $CACHE_DIR/$FILE_NAME
+fi
+
+echo "-----> Extracting Firefox binaries to ${BUILD_DIR}/vendor/${ARCHIVE_NAME}"
+mkdir -p $CACHE_DIR/$ARCHIVE_NAME
+mkdir -p $BUILD_DIR/vendor
+tar jxf $CACHE_DIR/$FILE_NAME -C $CACHE_DIR
+mv $CACHE_DIR/$ARCHIVE_NAME $BUILD_DIR/vendor/
+
+echo "-----> exporting PATH"
+PROFILE_PATH="$BUILD_DIR/.profile.d/firefox.sh"
+mkdir -p $(dirname $PROFILE_PATH)
+cat << EOF > $PROFILE_PATH
+export PATH="\$HOME/vendor/firefox:\$PATH"
+export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$HOME/vendor/firefox"
+EOF
+
+if [ -w ${bp_dir} ]; then
+  cat << EOF > ${bp_dir}/export
+export PATH=$BUILD_DIR/vendor/firefox:\$PATH
+export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:$BUILD_DIR/vendor/firefox"
+EOF
+fi
+
 
